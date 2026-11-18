@@ -1,0 +1,12 @@
+build/
+*.log
+mp_*.txt
+docs/zz_*.jpg
+docs/zz_*.png
+tools/recordings/
+tools/menu_refs/
+tools/__pycache__/
+__pycache__/
+references/
+*.o
+*.dll
