@@ -1037,10 +1037,12 @@ static void StandTurn(CPlayerPed* p, CPad* pad) {
     bool step = g_turning && g_turnT > kTurnStep && g_turnDir;
     static bool ls = false, lt = false; if (step != ls || g_turning != lt) Log("standturn turning=%d step=%d dir=%d t=%.2f", g_turning, step, g_turnDir, g_turnT);
     ls = step; lt = g_turning;
-    if (step) {
-        PlaySlot(g_turnSlot, p->m_pRwClump, g_body, g_turnDir > 0 ? "TURN_L" : "TURN_R", ANIMATION_LOOPED);
-        if (g_turnSlot.a) g_turnSlot.a->m_nFlags |= 0x1 | 0x80;
-    } else if (g_turnSlot.a) Stop(g_turnSlot);
+    // No turn clip: MP_BODY's TURN_L/TURN_R are full-body takes that carry their own root bob (the
+    // "jolt up and down") and their own arm pose (the odd hands the user reported). Turning is the
+    // heading goal alone now: the standing idle keeps playing (and any later random idle keeps
+    // running) while CJ rotates under it. A legs-only turn overlay can be added later without
+    // touching this path.
+    if (g_turnSlot.a) Stop(g_turnSlot);
 }
 
 // While free-walking only the clips of the current stick sector may play. With a real stick the

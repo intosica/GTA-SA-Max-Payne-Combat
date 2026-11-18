@@ -667,3 +667,21 @@ a toggle to bring in pinpoint accuracy on hipfire and one for aiming, both compa
 - Published: https://github.com/intosica/GTA-SA-Max-Payne-Combat (source, docs, tools, assets) and release `v1.0`
   with `GTA-SA-Max-Payne-Combat-v1.0.zip` = asi + 5 IFPs + `maxpayne_ui/` (install: drop them in the GTA SA folder,
   needs an ASI loader and GTA SA 1.0 US).
+
+## 2026-11-17 21:25 — turn-in-place: no more turn clip (jolt + odd hands), idles stay possible
+
+- User (m02347): "rotating in place with camera only causes CJ to jolt up and down, and his hands become positioned in an
+  odd manner, which is unlike the Max Payne's native rotation animation ... fix this strange arm behavior now ... let me
+  know if we do it this way, if it will lock us out of ever having those idle animations working."
+- Cause: `StandTurn` played `TURN_L`/`TURN_R` from `MP_BODY.IFP` as SOON as a fast camera yaw was detected
+  (`g_turnT > kTurnStep`). Those are full-body takes recorded on Max's rig while he holds a gun: they carry their own
+  root bob (the vertical jolt) and their own arm pose (the odd hands), and they cut in over the standing idle.
+- Fix (`asi/maxpayne_combat.cpp` `StandTurn`): the turn clip is gone; turning is the heading goal alone
+  (`g_turnGoal` -> `CalcVelocityHook` -> `CPed::CalculateNewVelocity`), so CJ rotates under whatever body clip is
+  already playing. Verified: `standturn step=1` frames, log shows no `play` line, `cf` `ped=` z constant (1014.7 for
+  the whole 3 s turn), screenshots mid-turn show the normal idle arm pose.
+- Does this lock out Max's random idle animations? No. The idles were never driven by this path: they play from the
+  standing-idle slot, and the turn now only rotates the ped, so an idle keeps running while CJ turns. What is lost is
+  only MP's *turn* animation itself (the step). To get it back without the jolt/hands, export a LEGS-ONLY turn clip
+  (or mask the existing one to the leg bones) and play it as a partial overlay - that is an additive change, nothing
+  here has to be undone.
