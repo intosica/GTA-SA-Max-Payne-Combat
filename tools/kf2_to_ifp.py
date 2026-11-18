@@ -163,7 +163,12 @@ def make_clip(rt, clip, bones, partial, root_motion, ground_clamp, loop=False, p
     n = 1 if hold else int(round(dur * FPS))
     have = {b for _, b in bones}
     stride = root_motion == "stride" and "Stand" not in src  # idles stay in place
-    if stride:
+    if mode == "inplace":
+        # Turn-in-place clips: stride baking walks the root 0.2 m sideways over the clip (the
+        # "jolt"), because it assumes a travelling cycle. A turn does not travel at all.
+        stride = False
+        root_motion = None
+    elif stride:
         root_motion = "vertical"
     raw = []
     for i in range(max(2, n if loop else n + 1)):  # loops: drop the duplicate end frame

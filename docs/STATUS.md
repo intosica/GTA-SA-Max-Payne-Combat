@@ -668,20 +668,34 @@ a toggle to bring in pinpoint accuracy on hipfire and one for aiming, both compa
   with `GTA-SA-Max-Payne-Combat-v1.0.zip` = asi + 5 IFPs + `maxpayne_ui/` (install: drop them in the GTA SA folder,
   needs an ASI loader and GTA SA 1.0 US).
 
-## 2026-11-17 21:25 — turn-in-place: no more turn clip (jolt + odd hands), idles stay possible
+## 2026-11-17 21:40 — turn-in-place: Max's own turn animation, fixed (no jolt, correct arms)
 
 - User (m02347): "rotating in place with camera only causes CJ to jolt up and down, and his hands become positioned in an
   odd manner, which is unlike the Max Payne's native rotation animation ... fix this strange arm behavior now ... let me
   know if we do it this way, if it will lock us out of ever having those idle animations working."
-- Cause: `StandTurn` played `TURN_L`/`TURN_R` from `MP_BODY.IFP` as SOON as a fast camera yaw was detected
-  (`g_turnT > kTurnStep`). Those are full-body takes recorded on Max's rig while he holds a gun: they carry their own
-  root bob (the vertical jolt) and their own arm pose (the odd hands), and they cut in over the standing idle.
-- Fix (`asi/maxpayne_combat.cpp` `StandTurn`): the turn clip is gone; turning is the heading goal alone
-  (`g_turnGoal` -> `CalcVelocityHook` -> `CPed::CalculateNewVelocity`), so CJ rotates under whatever body clip is
-  already playing. Verified: `standturn step=1` frames, log shows no `play` line, `cf` `ped=` z constant (1014.7 for
-  the whole 3 s turn), screenshots mid-turn show the normal idle arm pose.
-- Does this lock out Max's random idle animations? No. The idles were never driven by this path: they play from the
-  standing-idle slot, and the turn now only rotates the ped, so an idle keeps running while CJ turns. What is lost is
-  only MP's *turn* animation itself (the step). To get it back without the jolt/hands, export a LEGS-ONLY turn clip
-  (or mask the existing one to the leg bones) and play it as a partial overlay - that is an additive change, nothing
-  here has to be undone.
+- A first attempt simply stopped playing the turn clip; the user rejected that (m02390): "this isnt a fix. All you did
+  was throw away the max payne rotation animation.... that's not a fix." Reverted - the clip plays again, fixed at the
+  source. Four separate causes, each measured:
+  1. ROOT SLIDE (the "jolt"): `tools/kf2_to_ifp.py` ran `bake_stride` on the TURN clips because they do not contain
+     "Stand" (stride baking is for travelling locomotion cycles and plants the root on a moving foot). Dumped
+     `assets/MP_BODY.IFP`: TURN_L moved the root dx 0.128 m / dy -0.167 m over 21 frames while standing still, i.e.
+     Max's in-place step was dragged 0.2 m sideways/back. Fix: new `%inplace` clip mode in `make_clip`
+     (`if mode == "inplace": stride = False; root_motion = None`) and
+     `tools/build_ifps.sh:41` now exports `TURN_L=2_TurnLeft%inplace TURN_R=2_TurnRight%inplace
+     TURN1_L=TurnLeft%inplace TURN1_R=TurnRight%inplace`. Re-dumped: dx 0.000 dy 0.000 dz 0.000, while MOVE3 still
+     travels 1.06 m and run_player 2.03 m (locomotion unaffected).
+  2. FROZEN ARMS: the partial upper-body layer (`MP_COMBAT_UPPER`, armed idle pose) held full blend on its bones over
+     the full-body turn, so the turn's own arms never played and the arms sat in the idle pose while the legs stepped.
+     Fix: the upper-body branch now also steps aside while turning - `else if (g_moveActive || g_turning) { Stop(slot); }`
+     (`asi/maxpayne_combat.cpp` near `:486`), same rule that already applied to free walking.
+  3. WRONG TURN VARIANT: the code always played `TURN_L`/`TURN_R` = MP's `2_Turn*` - Max's TWO-HANDED turn - even with a
+     pistol, so his off hand closed on an invisible foregrip ("hands in an odd manner"). Fix: `StandTurn` now picks
+     `TURN1_L`/`TURN1_R` (MP's `Turn*`, one-handed/unarmed) when `OneHand(weapon)`, `TURN_L/R` otherwise, mirroring the
+     idle layer's `2_Stand`/`Stand` split. Log confirms `play TURN1_R` with the pistol.
+  4. FLICKER: `g_turnT` reset to 0 whenever a single frame's yaw rate fell under 0.15 rad/s. MPCam's yaw arrives in
+     bursts, so the clip started, stopped and restarted every few frames (part of the jolt). Fix: the rate is smoothed
+     with a ~125 ms EMA (`rate += (inst - rate) * fminf(1, dt * 8)`), so bursty frames keep the timer alive.
+- Verified: `turnrate 3.22 ... step=1` sustained for the whole 3.5 s camera turn, exactly one `play TURN1_R`, `cf` `ped=`
+  z constant (1014.740 => 0.0 mm drift over 400 frames), mid-turn screenshot shows the natural one-handed MP pose.
+- Idle animations are NOT locked out: the turn clip is full-body only while the camera is actually yawing
+  (`g_turning`), and the standing-idle path (and any later random idle) resumes as soon as it stops.

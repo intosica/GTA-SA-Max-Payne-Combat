@@ -38,7 +38,7 @@ python3 kf2_to_ifp.py --root-motion stride --phase-to-sa --fill-from-ped --block
   GUNMOVE_FWD=Run GUNMOVE_L=StrafeLeft%torso GUNMOVE_R=StrafeRight%torso GUNMOVE_BWD=WalkBackward%torso \
   IDLE_stanceLook=Stand IDLE_armedLook=2_Stand \
   GUNMOVE_LSway=StrafeLeft GUNMOVE_RSway=StrafeRight GUNMOVE_BWDSway=WalkBackward \
-  TURN_L=2_TurnLeft TURN_R=2_TurnRight TURN1_L=TurnLeft TURN1_R=TurnRight \
+  TURN_L=2_TurnLeft%inplace TURN_R=2_TurnRight%inplace TURN1_L=TurnLeft%inplace TURN1_R=TurnRight%inplace \
   ROCKET_IDLE=Stand%rocket ROCKET_WALK=Walk%rocket ROCKET_RUN=Run%rocket $MOVES
 # Variants (*Look = Max's full idle with look-around, *Sway = original torso) are picked by the
 # ASI menu toggles; the plain names are the defaults.

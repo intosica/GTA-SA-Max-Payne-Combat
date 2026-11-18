@@ -545,3 +545,24 @@ In mode 1 the camera never drifts (yaw only moves with the look stick), so the b
 every frame: `g_walkHeading = CameraHeading()` while free-walking, and `m_fHeadingGoal = g_walkHeading` in CalcVelocityHook
 (0x5E92ED -> CPed::CalculateNewVelocity 0x5E4C50). The old `PlayerLooking()` (>7000 raw stick) gate was a leftover from
 mouse-look days and is what let CJ keep an old diagonal heading.
+
+## Turn-in-place clips: export them with `%inplace`, and let the partial layer step aside
+Two rules learned the hard way (2026-11-17, user report m02347 "jolt up and down + odd hands"):
+- `tools/kf2_to_ifp.py` bakes root travel with `bake_stride` whenever the source clip has no "Stand" in its name, which
+  is right for WALK/RUN and wrong for turns and other in-place takes. MP's `2_TurnLeft`/`TurnLeft` are in place: baking
+  moved the root dx 0.128 / dy -0.167 m over 21 frames - visible as the ped being yanked sideways and back, which reads
+  as a vertical "jolt" because the camera chases the ped. Use the `%inplace` modifier (sets `stride = False`,
+  `root_motion = None`). Rule of thumb: a clip whose *own* hip yaw stays within a few degrees and whose feet stay planted
+  must not be stride-baked.
+- Weapon variants matter: MP ships `2_Turn*` (two-handed) and `Turn*` (one-handed/unarmed), exactly like `2_Stand` /
+  `Stand`. Playing the two-handed take with a pistol leaves Max's off hand on an invisible foregrip. Pick with
+  `OneHand(w->m_eWeaponType)`.
+- Layering: `MP_COMBAT_UPPER` partial clips own their bones at full blend. A full-body clip played under them cannot
+  animate those bones, so the arms freeze while the legs step. Every full-body state that is not aiming/firing
+  (free walk, turn-in-place) has to `Stop(slot)` on the upper layer.
+
+## Turn rate: smooth it, do not read a single frame
+`g_turnT` used to reset on any frame whose yaw rate fell under 0.15 rad/s. MPCam's yaw lands in bursts (a zero-yaw frame
+next to a 0.05 rad one), so the TURN clip started/stopped every few frames. A ~125 ms EMA
+(`rate += (inst - rate) * fminf(1, dt * 8)`) keeps the timer alive across bursts; pitch-leak rejection (right stick
+up/down leaking into X) still works because the EMA of a leak stays well under the threshold.

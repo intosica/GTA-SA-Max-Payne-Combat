@@ -485,10 +485,11 @@ static void UpdatePlayer(CPlayerPed* p) {
         std::string n = std::string("Aim") + (ShootClip(w->m_eWeaponType) + 5);
         PlaySlot(slot, p->m_pRwClump, g_upper, aims.emplace(n, n).first->second.c_str(),
                  flags | ANIMATION_LOOPED);
-    } else if (g_moveActive) {
-        // Free-walking, not aiming: Max's MOVE clips are complete full-body animations (arms,
-        // spine, head). The partial Stand pose overrode spine/neck/head/right arm with a frozen
-        // frame 20-60 deg off the clip while the left arm kept playing it: mismatched arms.
+    } else if (g_moveActive || g_turning) {
+        // Free-walking or turning in place, not aiming: Max's MOVE/TURN clips are complete
+        // full-body animations (arms, spine, head). Holding the partial Stand pose over them
+        // froze the arms in the idle pose while the legs stepped - the user's "hands in an odd
+        // manner" - so the partial layer steps aside and the turn's own arms play.
         Stop(slot);
     } else {
         auto* before = slot.a;
@@ -1030,19 +1031,32 @@ static void StandTurn(CPlayerPed* p, CPad* pad) {
         g_turnGoal = WrapPi(p->m_fHeadingCurrent - dc);  // same sign as g_walkHeading above
         float dt = *(float*)0xB7CB5C / 50.0f;
         // the camera must really be yawing (>0.15 rad/s): pushing the right stick up/down to pitch leaks
-        // some X, which used to start the stepping TURN clip (stale g_turnDir) while the camera only tilted
-        if (dt > 0 && fabsf(dc) / dt > 0.15f) { g_turnT += dt; g_turnDir = dc < 0 ? 1 : -1; }  // heading up = turning left
+        // some X, which used to start the stepping TURN clip (stale g_turnDir) while the camera only tilted.
+        // Smooth the rate first: MPCam's yaw lands in bursts (a zero-yaw frame next to a big one), and the
+        // raw per-frame rate reset the timer on those frames, so TURN_L/R faded in and out every few frames
+        // - visible as the "jolt" the user reported. ~125 ms EMA rides the burst pattern.
+        static float rate = 0.0f;
+        rate += ((dt > 0 ? fabsf(dc) / dt : 0.0f) - rate) * fminf(1.0f, dt * 8.0f);
+        if (rate > 0.15f) { g_turnT += dt; g_turnDir = dc < 0 ? 1 : -1; }  // heading up = turning left
         else g_turnT = 0;
     } else { g_turnT = 0; g_turnDir = 0; }
     bool step = g_turning && g_turnT > kTurnStep && g_turnDir;
     static bool ls = false, lt = false; if (step != ls || g_turning != lt) Log("standturn turning=%d step=%d dir=%d t=%.2f", g_turning, step, g_turnDir, g_turnT);
     ls = step; lt = g_turning;
-    // No turn clip: MP_BODY's TURN_L/TURN_R are full-body takes that carry their own root bob (the
-    // "jolt up and down") and their own arm pose (the odd hands the user reported). Turning is the
-    // heading goal alone now: the standing idle keeps playing (and any later random idle keeps
-    // running) while CJ rotates under it. A legs-only turn overlay can be added later without
-    // touching this path.
-    if (g_turnSlot.a) Stop(g_turnSlot);
+    // MP's own TurnLeft/TurnRight, full body (they bring the arms with them; the partial Stand
+    // layer steps aside while g_turning so the arms are not frozen). Exported with %inplace so
+    // the root does not slide 0.2 m per clip (stride baking used to do that - the "jolt").
+    if (step) {
+        // Match the idle layer's split: 2_Turn* is Max's TWO-HANDED weapon turn, Turn* his
+        // one-handed/unarmed turn. Playing the two-handed take with a pistol put his off hand
+        // on an invisible foregrip - the "hands in an odd manner" the user saw.
+        CWeapon* w = &p->m_aWeapons[p->m_nSelectedWepSlot];
+        bool two = Armed(p) && !OneHand(w->m_eWeaponType);
+        PlaySlot(g_turnSlot, p->m_pRwClump, g_body,
+                 g_turnDir > 0 ? (two ? "TURN_L" : "TURN1_L") : (two ? "TURN_R" : "TURN1_R"),
+                 ANIMATION_LOOPED);
+        if (g_turnSlot.a) g_turnSlot.a->m_nFlags |= 0x1 | 0x80;
+    } else if (g_turnSlot.a) Stop(g_turnSlot);
 }
 
 // While free-walking only the clips of the current stick sector may play. With a real stick the
