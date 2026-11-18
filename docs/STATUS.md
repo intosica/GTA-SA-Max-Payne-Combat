@@ -653,3 +653,17 @@ a toggle to bring in pinpoint accuracy on hipfire and one for aiming, both compa
   NATIVE AIM pushed `STICK LOOK CURVE` (the camera-movement row) out of the 10-row page, and the user read that as a
   removed option. Page 1 is unchanged: BODY ANIMS, MOVEMENT, STRAFE TORSO, BACKPEDAL TORSO, GUNFIRE, NATIVE AIM,
   CROSSHAIR, PAD CAMERA, STICK LOOK CURVE, SMOOTH TRANSITIONS.
+
+## 2026-11-17 21:10 — two-column menu, published repo + release
+
+- In-game menu is now 2 columns (10 rows each, `DrawMenu` in `asi/maxpayne_menu.h`): every option is on screen at once,
+  so adding rows can no longer push `STICK LOOK CURVE` (or anything else) onto a hidden page. Navigation stays linear
+  (DPAD up/down walks the list, left column first) - no new input to learn. The HIPFIRE ACCURACY / AIM ACCURACY rows sit
+  after NATIVE AIM again, in the first column.
+- The same B press that opens the menu with SELECT+B can no longer close it: `SetMenu` stamps `g_menuOpenedAt` and the
+  B-close path needs 400 ms to have passed.
+- `doc/`-free test aid: a temporary `mp_menu_open.txt` hook (auto-open, used for the layout screenshots because the
+  virtual pad's non-axis buttons stopped registering in this Wine session; axes still do) was removed again after use.
+- Published: https://github.com/intosica/GTA-SA-Max-Payne-Combat (source, docs, tools, assets) and release `v1.0`
+  with `GTA-SA-Max-Payne-Combat-v1.0.zip` = asi + 5 IFPs + `maxpayne_ui/` (install: drop them in the GTA SA folder,
+  needs an ASI loader and GTA SA 1.0 US).
